@@ -28,7 +28,6 @@ jobs:
             elif [ -f pyproject.toml ]; then
               pip install . || true
             fi
-            # prefer pytest if available
             if command -v pytest >/dev/null 2>&1; then
               pytest
             elif [ -d tests ] || ls test_*.py *_test.py >/dev/null 2>&1; then
@@ -85,8 +84,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ toLower(github.repository) }}:${{ github.sha }}
+            ghcr.io/${{ toLower(github.repository) }}:latest
 
       - name: Image digest
         run: |
