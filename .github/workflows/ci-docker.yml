@@ -6,32 +6,62 @@ permissions:
 
 on:
   push: {}
+  workflow_dispatch: {}
 
 jobs:
   test:
-    name: Run tests (Python + Node if present)
+    name: Run tests (with debug info)
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Debug: show environment & repo info
+        run: |
+          echo "===== GITHUB CONTEXT ====="
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Ref: $GITHUB_REF"
+          echo "Event name: $GITHUB_EVENT_NAME"
+          echo "Actor: $GITHUB_ACTOR"
+          echo "Workspace: $GITHUB_WORKSPACE"
+          echo "Current dir:"
+          pwd
+          echo "===== Listing top-level files ====="
+          ls -la
+          echo "===== Recursively list (top 3 levels) ====="
+          find . -maxdepth 3 -print || true
+          echo "===== Check for common test/dependency files ====="
+          [ -f requirements.txt ] && echo "requirements.txt: PRESENT" || echo "requirements.txt: MISSING"
+          [ -f pyproject.toml ] && echo "pyproject.toml: PRESENT" || echo "pyproject.toml: MISSING"
+          [ -f package.json ] && echo "package.json: PRESENT" || echo "package.json: MISSING"
+          [ -d tests ] && echo "tests directory: PRESENT" || echo "tests directory: MISSING"
+          ls -la || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
       - name: Detect & Run Python tests (if present)
         run: |
           set -e
+          echo "Detecting Python code/tests..."
           if [ -f requirements.txt ] || [ -f pyproject.toml ] || ls *.py >/dev/null 2>&1; then
-            echo "Python files or dependency file found. Setting up Python..."
+            echo "Python files or dependency file found. Installing..."
             python -V || true
             python -m pip install --upgrade pip
             if [ -f requirements.txt ]; then
-              pip install -r requirements.txt
+              pip install -r requirements.txt || true
             elif [ -f pyproject.toml ]; then
               pip install . || true
             fi
             if command -v pytest >/dev/null 2>&1; then
-              pytest
+              echo "Running pytest"
+              pytest || { echo 'pytest failed'; exit 1; }
             elif [ -d tests ] || ls test_*.py *_test.py >/dev/null 2>&1; then
-              python -m unittest discover
+              echo "Running unittest discovery"
+              python -m unittest discover || { echo 'unittest failed'; exit 1; }
             else
               echo "No Python tests found, skipping Python test step"
             fi
@@ -42,7 +72,7 @@ jobs:
       - name: Detect & Run Node tests (if package.json present)
         run: |
           if [ -f package.json ]; then
-            echo "package.json found. Setting up Node..."
+            echo "package.json found. Running npm tests..."
             node --version || true
             npm ci || npm install
             if npm test --silent; then
@@ -64,6 +94,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Compute lowercase repository (owner/repo) for image tag
+        id: repo_lower
+        run: |
+          # Lowercase the full GITHUB_REPOSITORY (owner/repo) and expose as output 'repo'
+          echo "repo=$(echo \"$GITHUB_REPOSITORY\" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Set up QEMU (for multi-arch, optional)
         uses: docker/setup-qemu-action@v2
 
@@ -84,8 +120,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ toLower(github.repository) }}:${{ github.sha }}
-            ghcr.io/${{ toLower(github.repository) }}:latest
+            ghcr.io/${{ steps.repo_lower.outputs.repo }}:${{ github.sha }}
+            ghcr.io/${{ steps.repo_lower.outputs.repo }}:latest
 
       - name: Image digest
         run: |
