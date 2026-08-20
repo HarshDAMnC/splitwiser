@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: harshs3185/splitwiser-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          # Override container start so we replace the static API_BASE in app.js
+          # to point to the backend Service name (http://backend:5000)
+          command: ["/bin/sh", "-c"]
+          args:
+            - "sed -i 's|http://localhost:5000|http://backend:5000|g' /usr/share/nginx/html/app.js && nginx -g 'daemon off;'"
