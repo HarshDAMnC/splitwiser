@@ -2,11 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://splitwiser-production-5057.up.railway.app"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": "https://splitwiser-production-5057.up.railway.app/api/$1"
     }
   ]
 }
